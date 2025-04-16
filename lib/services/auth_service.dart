@@ -71,13 +71,20 @@ class AuthService with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<Map<String, dynamic>?> getUserProfile(String userId) async {
+  Future<Map<String, dynamic>> getUserProfile(String userId) async {
     try {
       final doc = await _firestore.collection('users').doc(userId).get();
-      return doc.data();
+
+      if (!doc.exists || doc.data() == null) {
+        throw Exception('User not found');
+      }
+
+      Map<String, dynamic> userData = doc.data()!;
+      userData['id'] = doc.id; // Add the ID to the data
+      return userData;
     } catch (e) {
       debugPrint('Error getting user profile: $e');
-      return null;
+      throw Exception('Error fetching user data: $e');
     }
   }
 

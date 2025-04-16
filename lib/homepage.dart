@@ -1,5 +1,5 @@
-// home_page.dart (Updated with Firebase)
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:example/screen/libery_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -8,6 +8,8 @@ import 'services/auth_service.dart';
 import 'services/firebase_service.dart';
 import 'screen/content_detail_screen.dart';
 import 'screen/CreateContentScreen.dart';
+import 'screen/profile_screen.dart';
+import 'screen/setting_screen.dart';
 import 'screen/profile_screen.dart';
 
 class Homepage extends StatefulWidget {
@@ -80,6 +82,8 @@ class _HomepageState extends State<Homepage>
         continueFuture,
       ]);
 
+      print('Featured: $results');
+
       setState(() {
         _featuredItems = results[0];
         _popularItems = results[1];
@@ -96,6 +100,32 @@ class _HomepageState extends State<Homepage>
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Error loading data: $e')));
+    }
+  }
+
+  void _ensureContentTypes() {
+    for (var item in _featuredItems) {
+      if (!item.containsKey('type') || item['type'] == null) {
+        item['type'] = 'stories'; // Default type
+      }
+    }
+
+    for (var item in _popularItems) {
+      if (!item.containsKey('type') || item['type'] == null) {
+        item['type'] = 'stories'; // Default type
+      }
+    }
+
+    for (var item in _newReleases) {
+      if (!item.containsKey('type') || item['type'] == null) {
+        item['type'] = 'stories'; // Default type
+      }
+    }
+
+    for (var item in _continueReading) {
+      if (!item.containsKey('type') || item['type'] == null) {
+        item['type'] = 'stories'; // Default type
+      }
     }
   }
 
@@ -189,7 +219,7 @@ class _HomepageState extends State<Homepage>
       children: [
         DrawerHeader(
           decoration: BoxDecoration(
-            color: const Color.fromARGB(255, 91, 51, 160),
+            color: const Color.fromARGB(255, 62, 35, 109),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -211,7 +241,7 @@ class _HomepageState extends State<Homepage>
               ] else ...[
                 const Text(
                   'Join the community',
-                  style: TextStyle(color: Colors.white),
+                  style: TextStyle(color: Color.fromARGB(255, 129, 110, 110)),
                 ),
               ],
             ],
@@ -231,6 +261,10 @@ class _HomepageState extends State<Homepage>
             Navigator.pop(context);
             if (authService.currentUser != null) {
               // Navigate to library
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => LibraryScreen()),
+              );
             } else {
               _showLoginRequiredDialog();
             }
@@ -251,7 +285,10 @@ class _HomepageState extends State<Homepage>
             title: const Text('Settings'),
             onTap: () {
               Navigator.pop(context);
-              // Navigate to settings
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => SettingsScreen()),
+              );
             },
           ),
           ListTile(
@@ -277,33 +314,44 @@ class _HomepageState extends State<Homepage>
   }
 
   Widget _buildContentTab(String contentType) {
+    // Filter content lists based on the content type
+    final filteredFeatured =
+        _featuredItems.where((item) => item['type'] == contentType).toList();
+    final filteredPopular =
+        _popularItems.where((item) => item['type'] == contentType).toList();
+    final filteredNew =
+        _newReleases.where((item) => item['type'] == contentType).toList();
+    final filteredContinue =
+        _continueReading.where((item) => item['type'] == contentType).toList();
+
     return RefreshIndicator(
       onRefresh: _loadData,
       child: ListView(
         padding: const EdgeInsets.only(bottom: 20),
         children: [
-          // Featured Carousel
-          if (_featuredItems.isNotEmpty) _buildFeaturedCarousel(),
+          // Featured Carousel - only show if there are filtered items
+          if (filteredFeatured.isNotEmpty)
+            _buildFeaturedCarousel(filteredFeatured),
 
           // Categories Section
           _buildCategoriesSection(),
 
           // Popular This Week
           _buildSectionTitle('Popular This Week'),
-          _popularItems.isNotEmpty
-              ? _buildPopularGrid()
+          filteredPopular.isNotEmpty
+              ? _buildPopularGrid(filteredPopular)
               : const Center(child: Text('No popular content available')),
 
           // New Releases
           _buildSectionTitle('New Releases'),
-          _newReleases.isNotEmpty
-              ? _buildNewReleasesGrid()
+          filteredNew.isNotEmpty
+              ? _buildNewReleasesGrid(filteredNew)
               : const Center(child: Text('No new releases available')),
 
           // Continue Reading (only if there are items and user is logged in)
-          if (_continueReading.isNotEmpty) ...[
+          if (filteredContinue.isNotEmpty) ...[
             _buildSectionTitle('Continue Reading'),
-            _buildContinueReadingList(),
+            _buildContinueReadingList(filteredContinue),
           ],
 
           const SizedBox(height: 70), // Bottom padding for FAB
@@ -312,7 +360,7 @@ class _HomepageState extends State<Homepage>
     );
   }
 
-  Widget _buildFeaturedCarousel() {
+  Widget _buildFeaturedCarousel(List<Map<String, dynamic>> items) {
     return SizedBox(
       height: 200,
       child: Stack(
@@ -469,7 +517,7 @@ class _HomepageState extends State<Homepage>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(
-                _featuredItems.length,
+                items.length,
                 (index) => Container(
                   width: 8,
                   height: 8,
@@ -479,7 +527,12 @@ class _HomepageState extends State<Homepage>
                     color:
                         _currentCarouselIndex == index
                             ? Colors.white
-                            : Colors.white.withOpacity(0.5),
+                            : const Color.fromARGB(
+                              255,
+                              94,
+                              72,
+                              72,
+                            ).withOpacity(0.5),
                   ),
                 ),
               ),
@@ -540,7 +593,7 @@ class _HomepageState extends State<Homepage>
     );
   }
 
-  Widget _buildPopularGrid() {
+  Widget _buildPopularGrid(List<Map<String, dynamic>> items) {
     return GridView.builder(
       physics: const NeverScrollableScrollPhysics(),
       shrinkWrap: true,
@@ -551,9 +604,9 @@ class _HomepageState extends State<Homepage>
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
       ),
-      itemCount: _popularItems.length,
+      itemCount: items.length,
       itemBuilder: (context, index) {
-        final item = _popularItems[index];
+        final item = items[index];
         return _buildBookItem(
           title: item['title'],
           author: item['authorName'],
@@ -565,7 +618,7 @@ class _HomepageState extends State<Homepage>
     );
   }
 
-  Widget _buildNewReleasesGrid() {
+  Widget _buildNewReleasesGrid(List<Map<String, dynamic>> items) {
     return GridView.builder(
       physics: const NeverScrollableScrollPhysics(),
       shrinkWrap: true,
@@ -576,9 +629,9 @@ class _HomepageState extends State<Homepage>
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
       ),
-      itemCount: _newReleases.length,
+      itemCount: items.length,
       itemBuilder: (context, index) {
-        final item = _newReleases[index];
+        final item = items[index];
         final timestamp = item['publishedDate'] as Timestamp?;
         final publishDate =
             timestamp != null ? timestamp.toDate() : DateTime.now();
@@ -596,15 +649,15 @@ class _HomepageState extends State<Homepage>
     );
   }
 
-  Widget _buildContinueReadingList() {
+  Widget _buildContinueReadingList(List<Map<String, dynamic>> items) {
     return Container(
       height: 180,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        itemCount: _continueReading.length,
+        itemCount: items.length,
         itemBuilder: (context, index) {
-          final item = _continueReading[index];
+          final item = items[index];
           return Container(
             width: 300,
             margin: const EdgeInsets.only(right: 16),

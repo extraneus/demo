@@ -1,4 +1,3 @@
-// create_content_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
@@ -195,6 +194,23 @@ class _CreateContentScreenState extends State<CreateContentScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Content updated successfully')),
         );
+
+        // Reset isUploading
+        setState(() {
+          _isUploading = false;
+        });
+
+        // Navigate to content detail screen for updated content
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder:
+                (context) => ContentDetailScreen(
+                  contentId: contentId,
+                  contentType: widget.contentType,
+                ),
+          ),
+        );
       } else {
         // Create new content
         print('Creating new content in collection: ${widget.contentType}');
@@ -214,7 +230,8 @@ class _CreateContentScreenState extends State<CreateContentScreen> {
           );
 
           print('Navigating to chapter creation screen...');
-          // Always reset isUploading before navigation
+
+          // Reset isUploading before navigation
           setState(() {
             _isUploading = false;
           });
@@ -231,31 +248,31 @@ class _CreateContentScreenState extends State<CreateContentScreen> {
                   ),
             ),
           );
-          return; // Important to return here and not continue
         } else {
+          // For stories, go directly to content detail
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Content published successfully')),
           );
+
+          // Reset isUploading
+          setState(() {
+            _isUploading = false;
+          });
+
+          // Navigate to content detail screen for stories
+          print('Navigating to content detail screen for story...');
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (context) => ContentDetailScreen(
+                    contentId: contentId,
+                    contentType: widget.contentType,
+                  ),
+            ),
+          );
         }
       }
-
-      // Always reset isUploading before navigation
-      setState(() {
-        _isUploading = false;
-      });
-
-      // Navigate to content detail screen
-      print('Navigating to content detail screen...');
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder:
-              (context) => ContentDetailScreen(
-                contentId: contentId,
-                contentType: widget.contentType,
-              ),
-        ),
-      );
     } catch (e) {
       print('Error publishing content: $e');
       ScaffoldMessenger.of(
