@@ -36,21 +36,17 @@ class _CreateContentScreenState extends State<CreateContentScreen> {
   String _contentTypeTitle = 'Story';
 
   // Available genres
-  final List<String> _availableGenres = [
-    'Fantasy',
-    'Science Fiction',
+  final List<String> _availableGenres = const [
     'Romance',
-    'Mystery',
-    'Horror',
+    'Fantasy',
     'Adventure',
-    'Action',
+    'Mystery',
+    'Thriller',
+    'Science Fiction',
     'Comedy',
     'Drama',
-    'Thriller',
     'Historical',
-    'Slice of Life',
-    'Supernatural',
-    'Psychological',
+    'Horror',
   ];
 
   @override
@@ -100,16 +96,6 @@ class _CreateContentScreenState extends State<CreateContentScreen> {
         _coverImage = File(pickedFile.path);
       });
     }
-  }
-
-  void _toggleGenre(String genre) {
-    setState(() {
-      if (_selectedGenres.contains(genre)) {
-        _selectedGenres.remove(genre);
-      } else {
-        _selectedGenres.add(genre);
-      }
-    });
   }
 
   Future<void> _submitContent() async {
@@ -363,7 +349,7 @@ class _CreateContentScreenState extends State<CreateContentScreen> {
                       const SizedBox(height: 16),
 
                       // Genres
-                      _buildGenresSection(),
+                      _buildGenresMultiSelect(),
                       const SizedBox(height: 16),
 
                       // Premium toggle
@@ -501,30 +487,38 @@ class _CreateContentScreenState extends State<CreateContentScreen> {
     );
   }
 
-  Widget _buildGenresSection() {
+  Widget _buildGenresMultiSelect() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Genres (Select up to 3)',
+          'Genres (Select multiple)',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: 10.0,
           children:
               _availableGenres.map((genre) {
-                final isSelected = _selectedGenres.contains(genre);
-                return FilterChip(
+                return ChoiceChip(
                   label: Text(genre),
-                  selected: isSelected,
-                  selectedColor: Colors.deepPurple.withOpacity(0.3),
-                  checkmarkColor: Colors.deepPurple,
-                  onSelected:
-                      _selectedGenres.length >= 3 && !isSelected
-                          ? null
-                          : (_) => _toggleGenre(genre),
+                  selected: _selectedGenres.contains(genre),
+                  onSelected: (selected) {
+                    setState(() {
+                      if (selected) {
+                        _selectedGenres.add(genre);
+                      } else {
+                        _selectedGenres.remove(genre);
+                      }
+                    });
+                  },
+                  selectedColor: Colors.deepPurple.shade200,
+                  labelStyle: TextStyle(
+                    color:
+                        _selectedGenres.contains(genre)
+                            ? Colors.white
+                            : Colors.black,
+                  ),
                 );
               }).toList(),
         ),

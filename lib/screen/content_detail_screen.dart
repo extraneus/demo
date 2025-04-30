@@ -9,6 +9,179 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import '../services/auth_service.dart';
 import '../services/firebase_service.dart';
 
+// First, let's create a configurable reading background
+class ReadingBackground extends StatelessWidget {
+  final Color backgroundColor;
+  final double opacity;
+  final String? backgroundImage;
+
+  const ReadingBackground({
+    Key? key,
+    this.backgroundColor = const Color(
+      0xFFF5F5DC,
+    ), // Default to a paper-like color
+    this.opacity = 0.15,
+    this.backgroundImage,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        image:
+            backgroundImage != null
+                ? DecorationImage(
+                  image: AssetImage(backgroundImage!),
+                  fit: BoxFit.cover,
+                  opacity: opacity,
+                )
+                : null,
+      ),
+    );
+  }
+}
+
+// Next, let's create a page flip animation controller
+class PageFlipController {
+  late AnimationController controller;
+  late Animation<double> animation;
+  final bool isHorizontal;
+
+  PageFlipController({
+    required TickerProvider vsync,
+    this.isHorizontal = true,
+    Duration duration = const Duration(milliseconds: 500),
+  }) {
+    controller = AnimationController(vsync: vsync, duration: duration);
+
+    animation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: controller, curve: Curves.easeInOut));
+  }
+
+  void dispose() {
+    controller.dispose();
+  }
+
+  void nextPage() {
+    controller.forward(from: 0.0);
+  }
+
+  void previousPage() {
+    controller.reverse(from: 1.0);
+  }
+}
+
+// Finally, let's create a custom page flip widget
+class PageFlipWidget extends StatefulWidget {
+  final Widget firstPage;
+  final Widget secondPage;
+  final bool isHorizontal;
+  final VoidCallback? onPageFlipped;
+
+  const PageFlipWidget({
+    Key? key,
+    required this.firstPage,
+    required this.secondPage,
+    this.isHorizontal = true,
+    this.onPageFlipped,
+  }) : super(key: key);
+
+  @override
+  _PageFlipWidgetState createState() => _PageFlipWidgetState();
+}
+
+class _PageFlipWidgetState extends State<PageFlipWidget>
+    with SingleTickerProviderStateMixin {
+  late PageFlipController _flipController;
+
+  @override
+  void initState() {
+    super.initState();
+    _flipController = PageFlipController(
+      vsync: this,
+      isHorizontal: widget.isHorizontal,
+    );
+
+    _flipController.controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed && widget.onPageFlipped != null) {
+        widget.onPageFlipped!();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _flipController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _flipController.animation,
+      builder: (context, child) {
+        final value = _flipController.animation.value;
+        final angle = value * 3.14159; // Rotation from 0 to π
+
+        return GestureDetector(
+          onHorizontalDragEnd:
+              widget.isHorizontal
+                  ? (details) {
+                    if (details.primaryVelocity! < 0) {
+                      // Swipe left
+                      _flipController.nextPage();
+                    } else if (details.primaryVelocity! > 0) {
+                      // Swipe right
+                      _flipController.previousPage();
+                    }
+                  }
+                  : null,
+          onVerticalDragEnd:
+              !widget.isHorizontal
+                  ? (details) {
+                    if (details.primaryVelocity! < 0) {
+                      // Swipe up
+                      _flipController.nextPage();
+                    } else if (details.primaryVelocity! > 0) {
+                      // Swipe down
+                      _flipController.previousPage();
+                    }
+                  }
+                  : null,
+          child: Transform(
+            alignment:
+                widget.isHorizontal
+                    ? Alignment.centerRight
+                    : Alignment.bottomCenter,
+            transform:
+                Matrix4.identity()
+                  ..setEntry(3, 2, 0.001)
+                  ..rotateY(widget.isHorizontal ? angle : 0.0)
+                  ..rotateX(!widget.isHorizontal ? angle : 0.0),
+            child:
+                value <= 0.5
+                    ? widget.firstPage
+                    : Transform(
+                      alignment:
+                          widget.isHorizontal
+                              ? Alignment.centerLeft
+                              : Alignment.topCenter,
+                      transform:
+                          Matrix4.identity()
+                            ..rotateY(widget.isHorizontal ? 3.14159 : 0.0)
+                            ..rotateX(!widget.isHorizontal ? 3.14159 : 0.0),
+                      child: widget.secondPage,
+                    ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class ContentDetailScreen extends StatefulWidget {
   final String contentId;
   final String contentType;
@@ -705,62 +878,322 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.font_download),
-            onPressed: () {
-              // Show font settings dialog
-              _showFontSettingsDialog();
-            },
+            onPressed: _showFontSettingsDialog,
+          ),
+          IconButton(
+            icon: const Icon(Icons.flip),
+            onPressed: _togglePageFlipDirection,
+          ),
+          IconButton(
+            icon: const Icon(Icons.color_lens),
+            onPressed: _showBackgroundSettingsDialog,
           ),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
+          // Background layer
+          ReadingBackground(
+            backgroundColor: _readingBackgroundColor,
+            opacity: _backgroundOpacity,
+            backgroundImage: _selectedBackgroundImage,
+          ),
+
           // Reading progress indicator
-          LinearProgressIndicator(
-            value: _readingProgress,
-            backgroundColor: Colors.grey[200],
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurple),
-          ),
-
-          // Content
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child:
-                  widget.contentType == 'comics'
-                      ? _buildComicReader(content)
-                      : _buildTextReader(content),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LinearProgressIndicator(
+              value: _readingProgress,
+              backgroundColor: Colors.grey[200],
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurple),
             ),
           ),
 
-          // Navigation controls for chapters
-          if (_hasChapters && _chapters.length > 1)
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  ElevatedButton(
-                    onPressed:
-                        _selectedChapterIndex > 0
-                            ? () => _selectChapter(_selectedChapterIndex - 1)
-                            : null,
-                    child: const Text('Previous Chapter'),
-                  ),
-                  ElevatedButton(
-                    onPressed:
-                        _selectedChapterIndex < _chapters.length - 1
-                            ? () => _selectChapter(_selectedChapterIndex + 1)
-                            : null,
-                    child: const Text('Next Chapter'),
-                  ),
-                ],
-              ),
+          // Content with page flip
+          Positioned.fill(
+            top: 4, // Account for progress bar
+            child: PageFlipWidget(
+              isHorizontal: _isHorizontalFlip,
+              firstPage: _buildPageContent(content, 0),
+              secondPage: _buildPageContent(content, 1),
+              onPageFlipped: () {
+                // Update current page index and save progress
+                setState(() {
+                  _currentPageIndex++;
+                  _readingProgress = _currentPageIndex / _totalPages;
+                });
+                _saveReadingProgress();
+              },
             ),
+          ),
         ],
       ),
+
+      // Navigation controls for chapters
+      bottomNavigationBar:
+          _hasChapters && _chapters.length > 1
+              ? BottomAppBar(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      ElevatedButton(
+                        onPressed:
+                            _selectedChapterIndex > 0
+                                ? () =>
+                                    _selectChapter(_selectedChapterIndex - 1)
+                                : null,
+                        child: const Text('Previous Chapter'),
+                      ),
+                      ElevatedButton(
+                        onPressed:
+                            _selectedChapterIndex < _chapters.length - 1
+                                ? () =>
+                                    _selectChapter(_selectedChapterIndex + 1)
+                                : null,
+                        child: const Text('Next Chapter'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+              : null,
       floatingActionButton: FloatingActionButton(
         onPressed: _exitReadingMode,
         child: const Icon(Icons.close),
+      ),
+    );
+  }
+
+  // Add these new properties to your _ContentDetailScreenState class
+  Color _readingBackgroundColor = const Color(
+    0xFFF5F5DC,
+  ); // Default paper color
+  double _backgroundOpacity = 0.15;
+  String? _selectedBackgroundImage;
+  bool _isHorizontalFlip = true;
+  int _currentPageIndex = 0;
+  int _totalPages = 1;
+
+  // Helper method to toggle flip direction
+  void _togglePageFlipDirection() {
+    setState(() {
+      _isHorizontalFlip = !_isHorizontalFlip;
+    });
+  }
+
+  // Method to build a single page of content
+  Widget _buildPageContent(String content, int pageOffset) {
+    // For text content
+    if (widget.contentType != 'comics') {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Markdown(
+          controller: _scrollController,
+          selectable: true,
+          data: content,
+        ),
+      );
+    }
+    // For comics
+    else {
+      List<String> imageUrls = [];
+      try {
+        if (content.isNotEmpty) {
+          final dynamic contentData = content;
+          if (contentData is List) {
+            imageUrls = contentData.map((item) => item.toString()).toList();
+          } else if (contentData is String) {
+            imageUrls =
+                contentData
+                    .split('\n')
+                    .map((line) => line.trim())
+                    .where((line) => line.isNotEmpty)
+                    .toList();
+          }
+        }
+      } catch (e) {
+        print('Error parsing comic content: $e');
+      }
+
+      if (imageUrls.isEmpty) {
+        return const Center(child: Text('No comic pages available.'));
+      }
+
+      _totalPages = imageUrls.length;
+      int pageIndex = (_currentPageIndex + pageOffset) % imageUrls.length;
+
+      return Center(
+        child: CachedNetworkImage(
+          imageUrl: imageUrls[pageIndex],
+          placeholder:
+              (context, url) => Container(
+                height: 300,
+                color: Colors.grey[300],
+                child: const Center(child: CircularProgressIndicator()),
+              ),
+          errorWidget:
+              (context, url, error) => Container(
+                height: 300,
+                color: Colors.grey[300],
+                child: const Center(child: Icon(Icons.error)),
+              ),
+        ),
+      );
+    }
+  }
+
+  // Add this method to show background settings
+  void _showBackgroundSettingsDialog() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Background Settings'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Background Color'),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildColorOption(
+                      const Color(0xFFF5F5DC),
+                      'Paper',
+                    ), // Default
+                    _buildColorOption(const Color(0xFFE0E0E0), 'Light'),
+                    _buildColorOption(const Color(0xFF121212), 'Dark'),
+                    _buildColorOption(const Color(0xFFECEFF1), 'Blue Grey'),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                const Text('Background Style'),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildBackgroundStyleOption(null, 'None'),
+                    _buildBackgroundStyleOption(
+                      'assets/backgrounds/paper.png',
+                      'Paper',
+                    ),
+                    _buildBackgroundStyleOption(
+                      'assets/backgrounds/marble.png',
+                      'Marble',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                const Text('Background Opacity'),
+                Slider(
+                  value: _backgroundOpacity,
+                  min: 0.0,
+                  max: 0.5,
+                  onChanged: (value) {
+                    setState(() {
+                      _backgroundOpacity = value;
+                    });
+                    Navigator.pop(context);
+                    _showBackgroundSettingsDialog();
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  // Helper method to build color selection buttons
+  Widget _buildColorOption(Color color, String label) {
+    bool isSelected = _readingBackgroundColor == color;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _readingBackgroundColor = color;
+        });
+        Navigator.pop(context);
+        _showBackgroundSettingsDialog();
+      },
+      child: Column(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color,
+              border: Border.all(
+                color: isSelected ? Colors.deepPurple : Colors.grey,
+                width: isSelected ? 3 : 1,
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method to build background style selection buttons
+  Widget _buildBackgroundStyleOption(String? imagePath, String label) {
+    bool isSelected = _selectedBackgroundImage == imagePath;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedBackgroundImage = imagePath;
+        });
+        Navigator.pop(context);
+        _showBackgroundSettingsDialog();
+      },
+      child: Column(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              image:
+                  imagePath != null
+                      ? DecorationImage(
+                        image: AssetImage(imagePath),
+                        fit: BoxFit.cover,
+                      )
+                      : null,
+              color: imagePath == null ? Colors.grey[300] : null,
+              border: Border.all(
+                color: isSelected ? Colors.deepPurple : Colors.grey,
+                width: isSelected ? 3 : 1,
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child:
+                imagePath == null
+                    ? const Center(child: Icon(Icons.block))
+                    : null,
+          ),
+          const SizedBox(height: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ],
       ),
     );
   }

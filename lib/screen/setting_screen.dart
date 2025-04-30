@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../services/firebase_service.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 

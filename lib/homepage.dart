@@ -10,7 +10,6 @@ import 'screen/content_detail_screen.dart';
 import 'screen/CreateContentScreen.dart';
 import 'screen/profile_screen.dart';
 import 'screen/setting_screen.dart';
-import 'screen/profile_screen.dart';
 
 class Homepage extends StatefulWidget {
   const Homepage({super.key});
@@ -22,6 +21,7 @@ class Homepage extends StatefulWidget {
 class _HomepageState extends State<Homepage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  String _selectedCategory = ''; // Track the selected category
   int _currentCarouselIndex = 0;
 
   // Data loaded from Firebase
@@ -314,15 +314,43 @@ class _HomepageState extends State<Homepage>
   }
 
   Widget _buildContentTab(String contentType) {
-    // Filter content lists based on the content type
-    final filteredFeatured =
+    // Filter content lists based on the content type and selected genre
+    List<Map<String, dynamic>> filteredFeatured =
         _featuredItems.where((item) => item['type'] == contentType).toList();
-    final filteredPopular =
+    List<Map<String, dynamic>> filteredPopular =
         _popularItems.where((item) => item['type'] == contentType).toList();
-    final filteredNew =
+    List<Map<String, dynamic>> filteredNew =
         _newReleases.where((item) => item['type'] == contentType).toList();
-    final filteredContinue =
+    List<Map<String, dynamic>> filteredContinue =
         _continueReading.where((item) => item['type'] == contentType).toList();
+
+    // Apply genre filtering if a genre is selected
+    if (_selectedCategory.isNotEmpty) {
+      filteredFeatured =
+          filteredFeatured
+              .where(
+                (item) =>
+                    item['genres'] != null &&
+                    (item['genres'] as List).contains(_selectedCategory),
+              )
+              .toList();
+      filteredPopular =
+          filteredPopular
+              .where(
+                (item) =>
+                    item['genres'] != null &&
+                    (item['genres'] as List).contains(_selectedCategory),
+              )
+              .toList();
+      filteredNew =
+          filteredNew
+              .where(
+                (item) =>
+                    item['genres'] != null &&
+                    (item['genres'] as List).contains(_selectedCategory),
+              )
+              .toList();
+    }
 
     return RefreshIndicator(
       onRefresh: _loadData,
@@ -333,8 +361,8 @@ class _HomepageState extends State<Homepage>
           if (filteredFeatured.isNotEmpty)
             _buildFeaturedCarousel(filteredFeatured),
 
-          // Categories Section
-          _buildCategoriesSection(),
+          // Genre Section
+          _buildGenreSection(),
 
           // Popular This Week
           _buildSectionTitle('Popular This Week'),
@@ -455,7 +483,7 @@ class _HomepageState extends State<Homepage>
                           ),
                           const SizedBox(height: 4),
                           Row(
-                            children: [
+                            children: <Widget>[
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
@@ -477,7 +505,7 @@ class _HomepageState extends State<Homepage>
                                 ),
                               ),
                               if (item['genres'] != null &&
-                                  item['genres'] is List &&
+                                  item['genres'] is List<dynamic> &&
                                   item['genres'].isNotEmpty) ...[
                                 const SizedBox(width: 8),
                                 Container(
@@ -490,7 +518,7 @@ class _HomepageState extends State<Homepage>
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
-                                    item['genres'][0],
+                                    item['genres'][0], // Display the first genre
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 12,
@@ -543,30 +571,67 @@ class _HomepageState extends State<Homepage>
     );
   }
 
-  Widget _buildCategoriesSection() {
+  Widget _buildGenreSection() {
     return Container(
       height: 50,
       margin: const EdgeInsets.symmetric(vertical: 16),
-      child: ListView.builder(
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _categories.length,
-        itemBuilder: (context, index) {
-          return Container(
-            margin: const EdgeInsets.only(right: 8),
-            child: ElevatedButton(
-              onPressed: () {
-                _showCategoryContent(_categories[index]);
-              },
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+        child: Row(
+          children: [
+            // All Categories Button
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: ElevatedButton(
+                onPressed: () => _selectCategory(''), // Clear selection
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      _selectedCategory.isEmpty
+                          ? Colors.deepPurple
+                          : Colors.grey[300],
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                child: Text(
+                  'All',
+                  style: TextStyle(
+                    color:
+                        _selectedCategory.isEmpty ? Colors.white : Colors.black,
+                  ),
                 ),
               ),
-              child: Text(_categories[index]),
             ),
-          );
-        },
+            // Genre Buttons
+            ..._categories.map(
+              (category) => Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: ElevatedButton(
+                  onPressed: () => _selectCategory(category),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        _selectedCategory == category
+                            ? Colors.deepPurple
+                            : Colors.grey[300],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                  child: Text(
+                    category,
+                    style: TextStyle(
+                      color:
+                          _selectedCategory == category
+                              ? Colors.white
+                              : Colors.black,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -984,7 +1049,11 @@ class _HomepageState extends State<Homepage>
     );
   }
 
-  void _showCategoryContent(String category) {
+  void _selectCategory(String category) {
+    setState(() {
+      _selectedCategory = category;
+    });
+
     // Navigate to category content page
   }
 
